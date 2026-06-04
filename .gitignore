@@ -10,11 +10,11 @@ service-account*.json
 
 # Terraform
 terraform/.terraform/
-terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/terraform.tfvars
 *.tfvars
+!*.tfvars.example
 
 # Python
 __pycache__/
