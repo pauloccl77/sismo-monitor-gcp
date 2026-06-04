@@ -1,0 +1,5 @@
+project_id         = "sismo-monitor-pcl"
+project_number     = "TU_PROJECT_NUMBER"
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+region             = "us-central1"
+notification_channels = []
