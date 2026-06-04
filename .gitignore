@@ -33,6 +33,9 @@ build/
 *.swp
 *.swo
 
+# Estado local del poller
+ingestion/state/seen_ids.json
+
 # OS
 .DS_Store
 Thumbs.db
