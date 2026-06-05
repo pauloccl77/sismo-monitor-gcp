@@ -33,6 +33,10 @@ build/
 *.swp
 *.swo
 
+# Artefactos del pipeline local
+pipeline/output/
+pipeline/test_events.json
+
 # Estado local del poller
 ingestion/state/seen_ids.json
 
