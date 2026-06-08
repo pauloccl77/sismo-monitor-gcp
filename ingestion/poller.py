@@ -83,7 +83,7 @@ def poll_once(publisher, topic_path: str, seen_ids: set) -> set:
         lon, lat = coords[0], coords[1]
 
         # Filtro geográfico: solo Chile
-        # TEMP: filtro Chile comentado para pruebas con mayor volumen
+        # TEMP: comentado para pruebas con mayor volumen de eventos
         # if not is_in_chile(lon, lat):
         #     seen_ids.add(event_id)
         #     continue

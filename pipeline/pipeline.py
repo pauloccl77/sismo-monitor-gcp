@@ -126,7 +126,8 @@ def run(argv=None):
         eventos_chile = (
             raw
             | "Parsear"      >> beam.ParDo(ParseMessage())
-            | "FiltrarChile" >> beam.ParDo(FilterChile())
+            # TEMP: FilterChile comentado para pruebas con eventos mundiales
+            # | "FiltrarChile" >> beam.ParDo(FilterChile())
             | "Enriquecer"   >> beam.ParDo(EnrichEvent())
         )
 
