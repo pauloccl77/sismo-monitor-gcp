@@ -25,7 +25,8 @@ resource "google_bigquery_table" "eventos_raw" {
     { name = "timestamp_procesado",  type = "TIMESTAMP", mode = "NULLABLE", description = "Hora en que el pipeline procesó el evento" },
     { name = "region_chile",         type = "STRING",    mode = "NULLABLE", description = "Región administrativa de Chile" },
     { name = "es_alerta",            type = "BOOL",      mode = "NULLABLE", description = "True si magnitud >= umbral de alerta" },
-    { name = "url",                  type = "STRING",    mode = "NULLABLE", description = "URL del evento en USGS" }
+    { name = "url",                  type = "STRING",    mode = "NULLABLE", description = "URL del evento en USGS" },
+    { name = "is_update",            type = "BOOL",      mode = "NULLABLE", description = "True si es republicación por actualización de USGS" }
   ])
 
   time_partitioning {

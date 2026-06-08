@@ -115,7 +115,7 @@ class EnrichEvent(beam.DoFn):
         mag = element["magnitude"]
 
         element["region_chile"] = get_region_chile(lat, lon)
-        element["es_alerta"] = mag >= MAG_ALERT_THRESHOLD
+        element["es_alerta"] = bool(mag and mag >= MAG_ALERT_THRESHOLD)
         element["timestamp_procesado"] = int(time.time() * 1000)
 
         yield element

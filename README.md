@@ -197,8 +197,14 @@ cd terraform && terraform destroy
 ## Limitaciones conocidas
 
 - **Latencia USGS para Chile:** hasta 20 minutos post-evento. No es un sistema de alerta temprana — es un monitor de actividad.
+
 - **Frecuencia del feed:** USGS actualiza cada 60 segundos. No hay datos en tiempo real con sub-segundo de latencia.
+
 - **Cobertura:** solo eventos registrados por la red de sensores USGS. Eventos muy locales o superficiales pueden no aparecer.
+
+- **Eventos preliminares sin magnitud:** USGS publica algunos eventos inmediatamente después del sismo sin magnitud calculada (`magnitude: null`). El poller los captura en ese estado. Solución implementada: el poller rastrea el campo `updated` de cada evento — si USGS lo actualiza con magnitud revisada, el evento se republica automáticamente al pipeline. El campo `is_update: true` en BigQuery identifica estas republicaciones.
+
+- **Duplicados en BigQuery:** dado que los eventos actualizados se repubican, puede haber múltiples filas para el mismo `id` en `eventos_raw` — una con datos preliminares y otra con datos revisados. Para análisis, filtrar por `is_update = false` o usar `MAX(timestamp_procesado)` por `id`.
 
 ---
 

@@ -39,7 +39,8 @@ log = logging.getLogger(__name__)
 BQ_SCHEMA_EVENTOS = (
     "id:STRING,magnitud:FLOAT64,lugar:STRING,lat:FLOAT64,lon:FLOAT64,"
     "profundidad_km:FLOAT64,timestamp_evento:TIMESTAMP,timestamp_ingesta:TIMESTAMP,"
-    "timestamp_procesado:TIMESTAMP,region_chile:STRING,es_alerta:BOOL,url:STRING"
+    "timestamp_procesado:TIMESTAMP,region_chile:STRING,es_alerta:BOOL,url:STRING,"
+    "is_update:BOOL"
 )
 
 
