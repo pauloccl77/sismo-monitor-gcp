@@ -1,11 +1,13 @@
 """
 Pipeline principal — Monitor Sísmico Chile
-Modo local:  --runner=DirectRunner (default)
-Modo cloud:  --runner=DataflowRunner (Fase 3)
+Modo local:  --runner=DirectRunner (default) — escribe a archivo local
+Modo cloud:  --runner=DataflowRunner         — escribe a BigQuery
 
-Uso local:
-    python pipeline.py --input_file=../ingestion/state/test_events.json
-    python pipeline.py --input_pubsub=projects/sismo-monitor-pcl/topics/sismos-raw
+Uso local (archivo):
+    python pipeline.py --input_file=test_events.json
+
+Uso streaming (Pub/Sub → BigQuery):
+    python pipeline.py --runner=DataflowRunner
 """
 
 import argparse
@@ -14,9 +16,18 @@ import logging
 import os
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions
+from apache_beam.options.pipeline_options import (
+    PipelineOptions,
+    StandardOptions,
+    GoogleCloudOptions,
+    WorkerOptions,
+)
 from apache_beam.transforms.window import FixedWindows
-from apache_beam.transforms.trigger import AfterWatermark, AfterProcessingTime, AccumulationMode
+from apache_beam.transforms.trigger import (
+    AfterWatermark,
+    AfterProcessingTime,
+    AccumulationMode,
+)
 
 import config
 from transforms import ParseMessage, FilterChile, EnrichEvent, FormatForBigQuery, FilterAlertas
@@ -24,44 +35,72 @@ from transforms import ParseMessage, FilterChile, EnrichEvent, FormatForBigQuery
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+# Schema BigQuery — debe coincidir con terraform/bigquery.tf
+BQ_SCHEMA_EVENTOS = (
+    "id:STRING,magnitud:FLOAT64,lugar:STRING,lat:FLOAT64,lon:FLOAT64,"
+    "profundidad_km:FLOAT64,timestamp_evento:TIMESTAMP,timestamp_ingesta:TIMESTAMP,"
+    "timestamp_procesado:TIMESTAMP,region_chile:STRING,es_alerta:BOOL,url:STRING"
+)
+
 
 def run(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--input_file",
-        help="Archivo JSON local con eventos de prueba (uno por línea). Usa esto con DirectRunner.",
+        help="Archivo JSON local con eventos de prueba (uno por línea).",
         default=None,
     )
     parser.add_argument(
         "--input_pubsub",
-        help="Topic Pub/Sub de entrada. Formato: projects/PROJECT/topics/TOPIC",
+        help="Topic Pub/Sub de entrada.",
         default=f"projects/{config.PROJECT_ID}/topics/{config.TOPIC_RAW}",
     )
     parser.add_argument(
         "--output_file",
-        help="Archivo de salida local para resultados (DirectRunner).",
+        help="Archivo de salida local (DirectRunner).",
         default="output/eventos_procesados",
+    )
+    parser.add_argument(
+        "--output_bq",
+        help="Tabla BigQuery de salida. Formato: PROJECT:DATASET.TABLE",
+        default=f"{config.PROJECT_ID}:{config.DATASET_ID}.{config.TABLE_EVENTS}",
     )
     parser.add_argument(
         "--runner",
         default=config.RUNNER,
-        help="Runner de Beam: DirectRunner o DataflowRunner",
+    )
+    parser.add_argument(
+        "--temp_location",
+        help="GCS bucket para archivos temporales de Dataflow.",
+        default=os.environ.get("DATAFLOW_TEMP_LOCATION", ""),
     )
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
-    # Crear carpeta de output si no existe
     os.makedirs("output", exist_ok=True)
 
     options = PipelineOptions(pipeline_args)
     options.view_as(StandardOptions).runner = known_args.runner
 
-    # Streaming solo si leemos de Pub/Sub
     use_pubsub = known_args.input_file is None
+    use_dataflow = known_args.runner == "DataflowRunner"
+
     if use_pubsub:
         options.view_as(StandardOptions).streaming = True
 
-    log.info("Runner: %s | Modo: %s", known_args.runner, "streaming" if use_pubsub else "batch/archivo")
+    if use_dataflow:
+        gcp_options = options.view_as(GoogleCloudOptions)
+        gcp_options.project = config.PROJECT_ID
+        gcp_options.temp_location = known_args.temp_location
+        # region y machine_type se pasan por --region y --worker_machine_type
+        # NO hardcodear aquí para permitir cambiarlos sin modificar el código
+        worker_options = options.view_as(WorkerOptions)
+        worker_options.max_num_workers = 1
+
+    log.info("Runner: %s | Entrada: %s | Salida: %s",
+             known_args.runner,
+             "Pub/Sub" if use_pubsub else "archivo",
+             "BigQuery" if use_dataflow else "archivo local")
 
     with beam.Pipeline(options=options) as p:
 
@@ -82,7 +121,7 @@ def run(argv=None):
             )
 
         # ------------------------------------------------------------------
-        # 2. PARSEO Y FILTRO
+        # 2. PARSEO, FILTRO Y ENRIQUECIMIENTO
         # ------------------------------------------------------------------
         eventos_chile = (
             raw
@@ -92,40 +131,53 @@ def run(argv=None):
         )
 
         # ------------------------------------------------------------------
-        # 3. WINDOWING (solo streaming — Pub/Sub)
-        # Ventanas fijas de 10 minutos con watermark de 20 minutos
+        # 3. WINDOWING — solo en modo streaming (Pub/Sub)
+        # NOTA: con windowing los datos llegan a BQ después de ~30 min (ventana + watermark)
+        # Para verificación inicial está desactivado — reactivar en producción
         # ------------------------------------------------------------------
-        if use_pubsub:
-            eventos_chile = (
-                eventos_chile
-                | "Timestamps" >> beam.Map(
-                    lambda e: beam.window.TimestampedValue(
-                        e, e["timestamp_evento"]
-                    )
-                )
-                | "VentanasFijas" >> beam.WindowInto(
-                    FixedWindows(config.WINDOW_SIZE_MINUTES * 60),
-                    allowed_lateness=config.WATERMARK_MINUTES * 60,
-                    trigger=AfterWatermark(
-                        late=AfterProcessingTime(config.WATERMARK_MINUTES * 60)
-                    ),
-                    accumulation_mode=AccumulationMode.DISCARDING,
-                )
-            )
+        # if use_pubsub:
+        #     eventos_chile = (
+        #         eventos_chile
+        #         | "Timestamps" >> beam.Map(
+        #             lambda e: beam.window.TimestampedValue(
+        #                 e, e["timestamp_event"] / 1000.0
+        #             )
+        #         )
+        #         | "VentanasFijas" >> beam.WindowInto(
+        #             FixedWindows(config.WINDOW_SIZE_MINUTES * 60),
+        #             allowed_lateness=config.WATERMARK_MINUTES * 60,
+        #             trigger=AfterWatermark(
+        #                 late=AfterProcessingTime(config.WATERMARK_MINUTES * 60)
+        #             ),
+        #             accumulation_mode=AccumulationMode.DISCARDING,
+        #         )
+        #     )
 
         # ------------------------------------------------------------------
-        # 4. SALIDA
+        # 4. FORMATEO
         # ------------------------------------------------------------------
         formatted = (
             eventos_chile
             | "FormatearBQ" >> beam.ParDo(FormatForBigQuery())
         )
 
-        # Escribir a archivo local (DirectRunner) o BigQuery (DataflowRunner — Fase 3)
-        if not use_pubsub or known_args.runner == "DirectRunner":
+        # ------------------------------------------------------------------
+        # 5. SALIDA — BigQuery (Dataflow) o archivo local (DirectRunner)
+        # ------------------------------------------------------------------
+        if use_dataflow:
             (
                 formatted
-                | "SerializarJSON" >> beam.Map(json.dumps)
+                | "EscribirBigQuery" >> beam.io.WriteToBigQuery(
+                    known_args.output_bq,
+                    schema=BQ_SCHEMA_EVENTOS,
+                    write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+                    create_disposition=beam.io.BigQueryDisposition.CREATE_NEVER,
+                )
+            )
+        else:
+            (
+                formatted
+                | "SerializarJSON"  >> beam.Map(json.dumps)
                 | "EscribirArchivo" >> beam.io.WriteToText(
                     known_args.output_file,
                     file_name_suffix=".json",
@@ -133,11 +185,13 @@ def run(argv=None):
                 )
             )
 
-        # Alertas — separar eventos sobre umbral (preview Fase 4)
-        alertas = (
+        # ------------------------------------------------------------------
+        # 6. ALERTAS — rama paralela (preview Fase 4)
+        # ------------------------------------------------------------------
+        (
             eventos_chile
             | "FiltrarAlertas" >> beam.ParDo(FilterAlertas())
-            | "LogAlertas" >> beam.Map(
+            | "LogAlertas"     >> beam.Map(
                 lambda e: log.warning(
                     "🚨 ALERTA: M%.1f — %s (región: %s)",
                     e["magnitude"], e["place"], e["region_chile"]
