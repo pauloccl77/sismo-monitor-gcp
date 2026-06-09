@@ -35,6 +35,21 @@ resource "google_bigquery_table" "eventos_raw" {
   }
 }
 
+resource "google_bigquery_table" "alertas_enviadas" {
+  dataset_id          = google_bigquery_dataset.sismo_monitor.dataset_id
+  table_id            = "alertas_enviadas"
+  deletion_protection = false
+
+  description = "Registro de alertas sísmicas enviadas — usado para deduplicación en la Cloud Function"
+
+  schema = jsonencode([
+    { name = "id",               type = "STRING",    mode = "REQUIRED", description = "ID del evento USGS que fue alertado" },
+    { name = "timestamp_alerta", type = "TIMESTAMP", mode = "REQUIRED", description = "Hora en que se envió la alerta" },
+    { name = "magnitud",         type = "FLOAT64",   mode = "NULLABLE", description = "Magnitud del evento al momento de la alerta" },
+    { name = "lugar",            type = "STRING",    mode = "NULLABLE", description = "Descripción del lugar (USGS)" }
+  ])
+}
+
 resource "google_bigquery_table" "metricas_ventana" {
   dataset_id          = google_bigquery_dataset.sismo_monitor.dataset_id
   table_id            = "metricas_ventana"

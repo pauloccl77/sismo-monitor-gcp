@@ -24,3 +24,13 @@ variable "notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "alert_email_from" {
+  description = "Email verificado en SendGrid (sender) para las alertas sísmicas"
+  type        = string
+}
+
+variable "alert_email_to" {
+  description = "Email destinatario de las alertas sísmicas"
+  type        = string
+}

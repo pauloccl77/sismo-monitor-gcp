@@ -147,15 +147,12 @@ class FormatForBigQuery(beam.DoFn):
 
 class FilterAlertas(beam.DoFn):
     """
-    Emite solo los eventos que superan el umbral de alerta Y son publicación
-    original (is_update=False). Esto evita alertas duplicadas cuando USGS
-    actualiza un evento que ya fue notificado.
-
-    Excepción intencional: si un evento preliminar llegó sin magnitud (mag=None)
-    y la actualización cruza el umbral por primera vez, no será alertado.
-    Tradeoff aceptable — es preferible a duplicar notificaciones.
+    Emite todos los eventos con es_alerta=True, incluyendo is_update=True.
+    La deduplicación real se hace en la Cloud Function via tabla BQ alertas_enviadas,
+    lo que cubre también el caso donde un evento llega sin magnitud y USGS lo
+    actualiza después a M5+.
     """
 
     def process(self, element):
-        if element.get("es_alerta") and not element.get("is_update", False):
+        if element.get("es_alerta"):
             yield element

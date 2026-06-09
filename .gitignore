@@ -44,5 +44,8 @@ ingestion/state/seen_ids.json
 .DS_Store
 Thumbs.db
 
+# Artefacto de build de Cloud Function
+terraform/cf-notifier.zip
+
 # Contexto interno Claude — no exponer en GitHub
 .claude/

@@ -4,6 +4,10 @@ resource "google_pubsub_topic" "sismos_raw" {
   message_retention_duration = "86600s" # 24 horas
 }
 
+resource "google_pubsub_topic" "sismos_alertas" {
+  name = "sismos-alertas"
+}
+
 resource "google_pubsub_subscription" "sismos_raw_sub" {
   name  = "sismos-raw-sub"
   topic = google_pubsub_topic.sismos_raw.name

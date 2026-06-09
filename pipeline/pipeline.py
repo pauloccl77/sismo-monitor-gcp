@@ -188,18 +188,30 @@ def run(argv=None):
             )
 
         # ------------------------------------------------------------------
-        # 6. ALERTAS — rama paralela (preview Fase 4)
+        # 6. ALERTAS — rama paralela
+        # Streaming: publica a Pub/Sub sismos-alertas → Cloud Function notifier
+        # Local:     solo log (sin publicar a Pub/Sub)
         # ------------------------------------------------------------------
-        (
-            eventos_chile
-            | "FiltrarAlertas" >> beam.ParDo(FilterAlertas())
-            | "LogAlertas"     >> beam.Map(
-                lambda e: logging.warning(
-                    "ALERTA: M%.1f - %s (region: %s)",
-                    e.get("magnitude"), e.get("place"), e.get("region_chile")
+        if use_pubsub:
+            (
+                eventos_chile
+                | "FiltrarAlertas"    >> beam.ParDo(FilterAlertas())
+                | "SerializarAlertas" >> beam.Map(lambda e: json.dumps(e).encode("utf-8"))
+                | "PublicarAlertas"   >> beam.io.WriteToPubSub(
+                    topic=f"projects/{config.PROJECT_ID}/topics/{config.TOPIC_ALERTS}"
                 )
             )
-        )
+        else:
+            (
+                eventos_chile
+                | "FiltrarAlertas" >> beam.ParDo(FilterAlertas())
+                | "LogAlertas"     >> beam.Map(
+                    lambda e: logging.warning(
+                        "ALERTA: M%.1f - %s (region: %s)",
+                        e.get("magnitude"), e.get("place"), e.get("region_chile")
+                    )
+                )
+            )
 
 
 if __name__ == "__main__":
