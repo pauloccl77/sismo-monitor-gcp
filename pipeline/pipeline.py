@@ -53,8 +53,8 @@ def run(argv=None):
     )
     parser.add_argument(
         "--input_pubsub",
-        help="Topic Pub/Sub de entrada.",
-        default=f"projects/{config.PROJECT_ID}/topics/{config.TOPIC_RAW}",
+        help="Suscripción Pub/Sub de entrada (leer desde suscripción, no topic, para no perder mensajes previos al arranque).",
+        default=f"projects/{config.PROJECT_ID}/subscriptions/{config.SUB_RAW}",
     )
     parser.add_argument(
         "--output_file",
@@ -112,7 +112,7 @@ def run(argv=None):
             raw = (
                 p
                 | "LeerPubSub" >> beam.io.ReadFromPubSub(
-                    topic=known_args.input_pubsub
+                    subscription=known_args.input_pubsub
                 )
             )
         else:
@@ -194,9 +194,9 @@ def run(argv=None):
             eventos_chile
             | "FiltrarAlertas" >> beam.ParDo(FilterAlertas())
             | "LogAlertas"     >> beam.Map(
-                lambda e: log.warning(
-                    "🚨 ALERTA: M%.1f — %s (región: %s)",
-                    e["magnitude"], e["place"], e["region_chile"]
+                lambda e: logging.warning(
+                    "ALERTA: M%.1f - %s (region: %s)",
+                    e.get("magnitude"), e.get("place"), e.get("region_chile")
                 )
             )
         )

@@ -95,6 +95,14 @@ Balance entre latencia de las métricas agregadas y volumen de eventos. Chile re
 ~50-200 eventos/día — ventanas de 10 minutos dan resolución suficiente sin generar
 demasiadas filas en `metricas_ventana`.
 
+**¿Por qué Dataflow lee desde la suscripción y no desde el topic?**
+Apache Beam permite apuntar `ReadFromPubSub` al topic directamente — Beam crea una
+suscripción temporal. El problema: esa suscripción no existe hasta que Dataflow arranca,
+por lo que cualquier mensaje publicado mientras el job estaba caído se pierde.
+Leyendo desde `sismos-raw-sub` (suscripción fija creada por Terraform), los mensajes se
+acumulan con retención de 7 días independientemente del estado del job. Al reiniciar
+Dataflow, procesa todo lo que esperaba en la cola — sin pérdida de eventos.
+
 **¿Por qué `terraform destroy` al terminar cada sesión?**
 Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0.056/vCPU-hora.
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra

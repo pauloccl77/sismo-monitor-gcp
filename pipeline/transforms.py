@@ -141,15 +141,21 @@ class FormatForBigQuery(beam.DoFn):
             "region_chile":       element.get("region_chile"),
             "es_alerta":          element.get("es_alerta", False),
             "url":                element.get("url"),
+            "is_update":          element.get("is_update", False),
         }
 
 
 class FilterAlertas(beam.DoFn):
     """
-    Emite solo los eventos que superan el umbral de alerta.
-    Usado para publicar al topic sismos-alertas en Fase 4.
+    Emite solo los eventos que superan el umbral de alerta Y son publicación
+    original (is_update=False). Esto evita alertas duplicadas cuando USGS
+    actualiza un evento que ya fue notificado.
+
+    Excepción intencional: si un evento preliminar llegó sin magnitud (mag=None)
+    y la actualización cruza el umbral por primera vez, no será alertado.
+    Tradeoff aceptable — es preferible a duplicar notificaciones.
     """
 
     def process(self, element):
-        if element.get("es_alerta"):
+        if element.get("es_alerta") and not element.get("is_update", False):
             yield element

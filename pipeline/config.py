@@ -39,6 +39,7 @@ import os
 
 PROJECT_ID    = os.environ.get("GCP_PROJECT_ID", "sismo-monitor-pcl")
 TOPIC_RAW     = os.environ.get("PUBSUB_TOPIC_RAW", "sismos-raw")
+SUB_RAW       = os.environ.get("PUBSUB_SUB_RAW", "sismos-raw-sub")   # leer siempre desde suscripción
 TOPIC_ALERTS  = os.environ.get("PUBSUB_TOPIC_ALERTS", "sismos-alertas")
 DATASET_ID    = os.environ.get("BQ_DATASET", "sismo_monitor")
 TABLE_EVENTS  = os.environ.get("BQ_TABLE_EVENTS", "eventos_raw")

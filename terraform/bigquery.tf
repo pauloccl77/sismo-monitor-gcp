@@ -3,7 +3,7 @@ resource "google_bigquery_dataset" "sismo_monitor" {
   description = "Dataset principal del Monitor Sísmico Chile"
   location    = var.region
 
-  delete_contents_on_destroy = true # permite terraform destroy limpio
+  delete_contents_on_destroy = false # preservar datos entre sesiones de trabajo
 }
 
 resource "google_bigquery_table" "eventos_raw" {
