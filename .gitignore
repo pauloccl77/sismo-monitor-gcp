@@ -43,3 +43,6 @@ ingestion/state/seen_ids.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Contexto interno Claude — no exponer en GitHub
+.claude/
