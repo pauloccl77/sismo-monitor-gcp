@@ -116,6 +116,20 @@ se cobra por datos escaneados — una tabla de hechos agregados puede reducir el
 escaneado en más de un 99% respecto a la tabla de eventos. Patrón equivalente a la capa
 Gold en Medallion Architecture o las tablas de métricas en Microsoft Fabric.
 
+**¿Por qué el dashboard usa dos fuentes de datos distintas?**
+Looker Studio ejecuta una query independiente por cada chart al cargar la página.
+Para mantener el dashboard rápido y el costo de BQ bajo se usan dos fuentes:
+
+- `metricas_ventana` para todos los charts agregados (serie temporal, barras por región,
+  scorecards). Esta tabla es pequeña y siempre rápida — el trabajo pesado ya lo hizo
+  la Scheduled Query.
+- `eventos_raw` solo para el mapa de epicentros, filtrado a los últimos 7 días.
+  Como la tabla está particionada por `timestamp_evento`, BQ aplica partition pruning
+  y escanea solo las 7 particiones del período — no el histórico completo.
+
+Looker Studio cachea los resultados (por defecto 12h), por lo que visitas repetidas
+al dashboard no generan queries adicionales a BigQuery.
+
 **¿Por qué `terraform destroy` al terminar cada sesión?**
 Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0.056/vCPU-hora.
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra
