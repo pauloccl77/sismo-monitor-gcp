@@ -13,11 +13,14 @@ import base64
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 import functions_framework
 from google.cloud import bigquery
+from zoneinfo import ZoneInfo
 import requests
+
+CHILE_TZ = ZoneInfo("America/Santiago")
 
 PROJECT_ID       = os.environ["GCP_PROJECT_ID"]
 ALERT_EMAIL_FROM = os.environ["ALERT_EMAIL_FROM"]
@@ -108,15 +111,15 @@ def notify(cloud_event) -> None:
         logging.info("Evento %s ya fue alertado, omitiendo", event_id)
         return
 
-    mag_str  = f"M{magnitud:.1f}" if magnitud is not None else "M?"
-    hora_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    mag_str    = f"M{magnitud:.1f}" if magnitud is not None else "M?"
+    hora_chile = datetime.now(CHILE_TZ).strftime("%Y-%m-%d %H:%M (Chile)")
 
     telegram_msg = (
         f"<b>\U0001f6a8 ALERTA SÍSMICA {mag_str}</b>\n"
         f"\U0001f4cd <b>Lugar:</b> {lugar}\n"
         f"\U0001f5fa️ <b>Región:</b> {region}\n"
         f"⬇️ <b>Profundidad:</b> {profundidad} km\n"
-        f"\U0001f550 <b>Hora:</b> {hora_utc}\n"
+        f"\U0001f550 <b>Hora:</b> {hora_chile}\n"
         f"\U0001f517 {url}"
     )
     email_asunto = f"Alerta Sismica {mag_str} - {lugar}"
@@ -126,7 +129,7 @@ def notify(cloud_event) -> None:
         f"Lugar:       {lugar}\n"
         f"Region:      {region}\n"
         f"Profundidad: {profundidad} km\n"
-        f"Hora:        {hora_utc}\n"
+        f"Hora:        {hora_chile}\n"
         f"URL:         {url}\n"
     )
 

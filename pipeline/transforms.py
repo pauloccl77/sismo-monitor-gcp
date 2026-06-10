@@ -110,11 +110,15 @@ class EnrichEvent(beam.DoFn):
     """
 
     def process(self, element):
-        lat = element["lat"]
-        lon = element["lon"]
-        mag = element["magnitude"]
+        lat = element.get("lat")
+        lon = element.get("lon")
+        mag = element.get("magnitude")
 
-        element["region_chile"] = get_region_chile(lat, lon)
+        if lat is not None and lon is not None and is_in_chile(lat, lon):
+            element["region_chile"] = get_region_chile(lat, lon)
+        else:
+            element["region_chile"] = None  # CF mostrará "Fuera de Chile"
+
         element["es_alerta"] = bool(mag and mag >= MAG_ALERT_THRESHOLD)
         element["timestamp_procesado"] = int(time.time() * 1000)
 
