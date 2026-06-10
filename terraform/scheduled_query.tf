@@ -8,6 +8,10 @@ resource "google_bigquery_data_transfer_config" "metricas_ventana" {
 
   params = {
     query = <<-SQL
+      DELETE FROM `${var.project_id}.sismo_monitor.metricas_ventana`
+      WHERE ventana_inicio >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY);
+
+      INSERT INTO `${var.project_id}.sismo_monitor.metricas_ventana`
       SELECT
         COALESCE(region_chile, 'Mundial') AS region,
         TIMESTAMP_TRUNC(timestamp_evento, MINUTE)
@@ -21,13 +25,12 @@ resource "google_bigquery_data_transfer_config" "metricas_ventana" {
         MAX(magnitud) AS magnitud_max,
         AVG(magnitud) AS magnitud_promedio
       FROM `${var.project_id}.sismo_monitor.eventos_raw`
-      WHERE timestamp_evento IS NOT NULL
+      WHERE timestamp_evento >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)
+        AND timestamp_evento IS NOT NULL
         AND magnitud IS NOT NULL
         AND (is_update IS NULL OR is_update = FALSE)
-      GROUP BY 1, 2, 3
+      GROUP BY 1, 2, 3;
     SQL
-    destination_table_name_template = "metricas_ventana"
-    write_disposition               = "WRITE_TRUNCATE"
   }
 
   depends_on = [
