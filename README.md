@@ -103,6 +103,19 @@ Leyendo desde `sismos-raw-sub` (suscripción fija creada por Terraform), los men
 acumulan con retención de 7 días independientemente del estado del job. Al reiniciar
 Dataflow, procesa todo lo que esperaba en la cola — sin pérdida de eventos.
 
+**¿Por qué `metricas_ventana` se puebla con Scheduled Query y no con windowing en Beam?**
+Apache Beam tiene soporte nativo para ventanas de tiempo (`FixedWindows`), pero activarlo
+añade ~30 minutos de latencia antes de que los datos lleguen a BigQuery (ventana + watermark).
+Para el volumen de este proyecto esa latencia no aporta valor. En su lugar, una Scheduled
+Query en BigQuery agrega `eventos_raw` cada 10 minutos — mismo resultado, sin complejidad
+adicional en el pipeline.
+
+Esto introduce además una capa de agregación pre-calculada: Looker Studio consulta
+`metricas_ventana` en vez de agregar en tiempo real sobre los datos crudos. En BigQuery
+se cobra por datos escaneados — una tabla de hechos agregados puede reducir el volumen
+escaneado en más de un 99% respecto a la tabla de eventos. Patrón equivalente a la capa
+Gold en Medallion Architecture o las tablas de métricas en Microsoft Fabric.
+
 **¿Por qué `terraform destroy` al terminar cada sesión?**
 Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0.056/vCPU-hora.
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra

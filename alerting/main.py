@@ -111,8 +111,13 @@ def notify(cloud_event) -> None:
         logging.info("Evento %s ya fue alertado, omitiendo", event_id)
         return
 
-    mag_str    = f"M{magnitud:.1f}" if magnitud is not None else "M?"
-    hora_chile = datetime.now(CHILE_TZ).strftime("%Y-%m-%d %H:%M (Chile)")
+    mag_str = f"M{magnitud:.1f}" if magnitud is not None else "M?"
+
+    ts_ms = event.get("timestamp_event")
+    if ts_ms:
+        hora_chile = datetime.fromtimestamp(ts_ms / 1000, tz=CHILE_TZ).strftime("%Y-%m-%d %H:%M (Chile)")
+    else:
+        hora_chile = datetime.now(CHILE_TZ).strftime("%Y-%m-%d %H:%M (Chile)")
 
     telegram_msg = (
         f"<b>\U0001f6a8 ALERTA SÍSMICA {mag_str}</b>\n"
