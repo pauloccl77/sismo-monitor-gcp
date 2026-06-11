@@ -22,7 +22,7 @@ CHILE_LON_MAX = -66.0
 # Umbrales de magnitud
 # ---------------------------------------------------------------------------
 MAG_MIN_DISPLAY = 0.5      # Magnitud mínima para procesar y escribir a BigQuery
-MAG_ALERT_THRESHOLD = 3.0  # Magnitud mínima para disparar alerta (email + Telegram)
+MAG_ALERT_THRESHOLD = 5.0  # Magnitud mínima para disparar alerta (email + Telegram)
 
 # ---------------------------------------------------------------------------
 # Watermark y windowing

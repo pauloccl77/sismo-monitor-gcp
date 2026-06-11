@@ -164,6 +164,24 @@ WHERE timestamp_evento >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
 QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp_procesado DESC) = 1
 ```
 
+**Alcance mundial vs. producción Chile — decisión de visualización**
+El objetivo del proyecto es la detección y registro de sismos en Chile. Sin embargo,
+para demostrar el pipeline con datos reales y un dashboard visualmente más rico,
+el sistema opera en modo mundial durante el desarrollo:
+
+| Parámetro | Modo demo (actual) | Producción Chile |
+|---|---|---|
+| `MAG_ALERT_THRESHOLD` | 5.0 | 5.0 |
+| Filtro geográfico | Mundial (FilterChile comentado) | Solo Chile |
+| Campo `region_chile` | País del evento (de USGS `place`) | Región administrativa de Chile |
+
+**Para pasar a producción Chile**, descomentar en `pipeline/pipeline.py`:
+```python
+# | "FiltrarChile" >> beam.ParDo(FilterChile())
+```
+El resto del pipeline opera sin cambios — `EnrichEvent` ya asigna la región chilena
+correcta cuando las coordenadas están dentro del bounding box de Chile.
+
 **¿Por qué `terraform destroy` al terminar cada sesión?**
 Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0.056/vCPU-hora.
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra

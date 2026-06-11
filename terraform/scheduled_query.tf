@@ -13,7 +13,7 @@ resource "google_bigquery_data_transfer_config" "metricas_ventana" {
 
       INSERT INTO `${var.project_id}.sismo_monitor.metricas_ventana`
       SELECT
-        COALESCE(region_chile, 'Mundial') AS region,
+        COALESCE(region_chile, 'Sin lugar') AS region,
         TIMESTAMP_TRUNC(timestamp_evento, MINUTE)
           - INTERVAL MOD(EXTRACT(MINUTE FROM timestamp_evento), 10) MINUTE
           AS ventana_inicio,

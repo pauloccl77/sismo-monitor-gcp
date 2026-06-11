@@ -58,6 +58,15 @@ def is_in_chile(lat: float, lon: float) -> bool:
             CHILE_LON_MIN <= lon <= CHILE_LON_MAX)
 
 
+def get_pais(place: str) -> Optional[str]:
+    """Extrae el país/estado del campo place de USGS ('X km de Ciudad, País' → 'País')."""
+    if not place:
+        return None
+    if "," in place:
+        return place.split(",")[-1].strip()
+    return None
+
+
 # ---------------------------------------------------------------------------
 # PTransforms
 # ---------------------------------------------------------------------------
@@ -117,7 +126,7 @@ class EnrichEvent(beam.DoFn):
         if lat is not None and lon is not None and is_in_chile(lat, lon):
             element["region_chile"] = get_region_chile(lat, lon)
         else:
-            element["region_chile"] = None  # CF mostrará "Fuera de Chile"
+            element["region_chile"] = get_pais(element.get("place", ""))
 
         element["es_alerta"] = bool(mag and mag >= MAG_ALERT_THRESHOLD)
         element["timestamp_procesado"] = int(time.time() * 1000)
