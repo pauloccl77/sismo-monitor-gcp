@@ -49,7 +49,7 @@ def get_region_chile(lat: float, lon: float) -> str:
     for nombre, lat_min, lat_max, lon_min, lon_max in REGIONES_CHILE:
         if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
             return nombre
-    return "Chile (sin región)"
+    return "Chile"
 
 
 def is_in_chile(lat: float, lon: float) -> bool:
