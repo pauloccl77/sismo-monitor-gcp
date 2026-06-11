@@ -6,12 +6,11 @@ resource "google_service_account_iam_member" "dts_impersonate_cf_notifier" {
 }
 
 resource "google_bigquery_data_transfer_config" "metricas_ventana" {
-  display_name           = "Agregar métricas por ventana de 10 min"
-  location               = var.region
-  data_source_id         = "scheduled_query"
-  schedule               = "every 10 minutes"
-  destination_dataset_id = google_bigquery_dataset.sismo_monitor.dataset_id
-  service_account_name   = google_service_account.cf_notifier.email
+  display_name         = "Agregar métricas por ventana de 10 min"
+  location             = var.region
+  data_source_id       = "scheduled_query"
+  schedule             = "every 10 minutes"
+  service_account_name = google_service_account.cf_notifier.email
 
   params = {
     query = <<-SQL
