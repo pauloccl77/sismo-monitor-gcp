@@ -1,3 +1,10 @@
+# BQ Data Transfer Service necesita impersonar cf-notifier para ejecutar scripts DML
+resource "google_service_account_iam_member" "dts_impersonate_cf_notifier" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/cf-notifier@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${var.project_number}@gcp-sa-bigquerydatatransfer.iam.gserviceaccount.com"
+}
+
 resource "google_bigquery_data_transfer_config" "metricas_ventana" {
   display_name           = "Agregar métricas por ventana de 10 min"
   location               = var.region
