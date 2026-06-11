@@ -130,6 +130,40 @@ Para mantener el dashboard rápido y el costo de BQ bajo se usan dos fuentes:
 Looker Studio cachea los resultados (por defecto 12h), por lo que visitas repetidas
 al dashboard no generan queries adicionales a BigQuery.
 
+**¿Por qué las fuentes de Looker Studio usan consulta personalizada y no la tabla directa?**
+Los campos TIMESTAMP en BigQuery se almacenan en UTC. Conectar la tabla directamente
+muestra las horas en UTC en el dashboard. Para mostrar hora Chile, las fuentes usan
+consultas personalizadas con `DATETIME(campo, 'America/Santiago')` — la conversión
+ocurre en BigQuery antes de que Looker Studio reciba los datos.
+
+Consulta fuente `metricas_ventana`:
+```sql
+SELECT
+  region,
+  DATETIME(ventana_inicio, 'America/Santiago') AS ventana_inicio,
+  DATETIME(ventana_fin,    'America/Santiago') AS ventana_fin,
+  conteo,
+  magnitud_max,
+  magnitud_promedio
+FROM `sismo-monitor-pcl.sismo_monitor.metricas_ventana`
+```
+
+Consulta fuente `eventos_raw` (mapa — últimos 7 días):
+```sql
+SELECT
+  id, magnitud, lugar,
+  COALESCE(region_chile, 'Mundial') AS region,
+  lat, lon, profundidad_km,
+  DATETIME(timestamp_evento, 'America/Santiago') AS timestamp_evento,
+  es_alerta, url
+FROM `sismo-monitor-pcl.sismo_monitor.eventos_raw`
+WHERE timestamp_evento >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+  AND (is_update IS NULL OR is_update = FALSE)
+  AND lat IS NOT NULL
+  AND lon IS NOT NULL
+QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp_procesado DESC) = 1
+```
+
 **¿Por qué `terraform destroy` al terminar cada sesión?**
 Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0.056/vCPU-hora.
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra
