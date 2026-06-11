@@ -2,6 +2,8 @@
 
 > Pipeline near real-time que ingesta sismos desde USGS, los procesa con Apache Beam y entrega alertas automáticas por email y Telegram.
 
+**[Ver Dashboard en vivo →](https://datastudio.google.com/u/0/reporting/9ba90f6b-b7b5-4b0f-ac13-61a0925ad942/page/Lys0F?s=pPzL-zN4qug)**
+
 ---
 
 ## Por qué existe este proyecto
