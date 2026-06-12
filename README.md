@@ -286,6 +286,48 @@ terraform destroy \
 
 ---
 
+## Evidencia del sistema en producción
+
+### Poller — publicando eventos a Pub/Sub
+![Poller USGS corriendo](docs/00_1%20poller.png)
+
+### Pub/Sub — topic `sismos-raw`
+![Topic sismos-raw con mensajes](docs/00_2%20pub_sub%20-%20sismos_raw.png)
+
+### BigQuery — tabla `eventos_raw`
+![Registros en eventos_raw](docs/01%20registro%20BQ%20-%20tabla%20eventos_raw.png)
+
+### BigQuery — Scheduled Query `metricas_ventana`
+![Scheduled Query ejecutándose](docs/02%20BQ%20-%20Scheduled%20Query.png)
+
+### BigQuery — tabla `metricas_ventana`
+![Tabla metricas_ventana](docs/02_1%20BQ%20-%20metricas_ventana.png)
+
+### Dataflow — Gráfico del pipeline
+![Dataflow grafo del pipeline](docs/03_1%20Dataflow%20job%20-%20diagrama.png)
+![Dataflow grafo detalle](docs/03_2%20Dataflow%20job%20-%20diagrama.png)
+
+### Dataflow — Métricas en tiempo real
+![Dataflow métricas por etapa](docs/03_3%20Dataflow%20job%20-%20grafico.png)
+![Dataflow watermark age](docs/03_4%20Dataflow%20job%20-%20grafico.png)
+
+### Dashboard Looker Studio
+![Dashboard Looker Studio](docs/04%20Dashboard.png)
+
+### Cloud Function — sismo-notifier
+![Cloud Function sismo-notifier](docs/05_1%20CF%20-%20sismo-notifier.png)
+
+### Pub/Sub — topic `sismos-alertas`
+![Topic sismos-alertas](docs/05_2%20pubsub%20-%20sismos-alertas.png)
+
+### Alerta Telegram
+![Alerta recibida en Telegram](docs/06_1%20Alerta%20Telegram.png)
+
+### Alerta Email
+![Alerta recibida por email](docs/06_2%20Alerta%20Email.png)
+
+---
+
 ## Estado actual
 
 | Fase | Estado |
