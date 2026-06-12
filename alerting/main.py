@@ -13,7 +13,7 @@ import base64
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import functions_framework
 from google.cloud import bigquery

@@ -28,13 +28,9 @@ No predice terremotos — eso no es posible con los datos disponibles.
 USGS GeoJSON Feed (actualizado cada 60s)
         │
         ▼
-[Cloud Scheduler] → dispara cada 60s
-        │
-        ▼
-[Cloud Run Job — Poller Python]
-  · Descarga feed USGS
-  · Deduplica por event ID
-  · Filtra: bounding box Chile
+[Poller Python — local / CLI]
+  · Descarga feed USGS cada 60s
+  · Deduplica por (event ID, updated timestamp)
   · Publica a Pub/Sub
         │
         ▼
@@ -43,9 +39,7 @@ USGS GeoJSON Feed (actualizado cada 60s)
         ▼
 [Dataflow — Apache Beam Streaming]
   · Filtro geográfico + magnitud mínima
-  · Windowing: ventanas fijas de 10 minutos
-  · Watermark: 20 min (latencia real USGS para Chile)
-  · Enriquecimiento: nombre de región chilena
+  · Enriquecimiento: región chilena o país USGS
   · Escribe a BigQuery
   · Publica alertas si magnitud ≥ 5.0
         │
@@ -53,14 +47,17 @@ USGS GeoJSON Feed (actualizado cada 60s)
         ▼                             ▼
 [BigQuery]                 [Pub/Sub — sismos-alertas]
   · eventos_raw                       │
-  · metricas_ventana                  ▼
-        │                  [Cloud Function — Notificador]
-        ▼                    · Email vía SendGrid
-[Looker Studio]              · Telegram Bot API
+  · metricas_ventana ←────────        ▼
+        │            Scheduled [Cloud Function — Notificador]
+        │              Query     · Dedup via alertas_enviadas
+        ▼             (10 min)   · Email vía SendGrid
+[Looker Studio]                  · Telegram Bot API
   · Mapa de epicentros
-  · Serie temporal
-  · Últimos eventos
+  · Serie temporal por región
+  · Scorecards en tiempo real
 ```
+
+> **Mejora futura (Fase 8 — optativa):** desplegar el poller como Cloud Run Job + Cloud Scheduler para eliminar la dependencia de una máquina local corriendo.
 
 ---
 
@@ -68,12 +65,12 @@ USGS GeoJSON Feed (actualizado cada 60s)
 
 | Servicio | Rol |
 |---|---|
-| Cloud Scheduler | Trigger periódico del poller (cada 60s) |
-| Cloud Run Jobs | Poller de ingesta Python |
 | Pub/Sub | Desacople ingesta / procesamiento |
-| Dataflow (Apache Beam) | Pipeline streaming — filtro, windowing, escritura |
-| BigQuery | Persistencia: histórico + métricas agregadas |
-| Cloud Functions | Notificador de alertas |
+| Dataflow (Apache Beam) | Pipeline streaming — filtro, enriquecimiento, escritura |
+| BigQuery | Persistencia: histórico (`eventos_raw`) + métricas (`metricas_ventana`) |
+| BigQuery Data Transfer | Scheduled Query — agrega métricas cada 10 min |
+| Cloud Functions (2ª gen) | Notificador de alertas (Telegram + email) |
+| Secret Manager | Credenciales SendGrid y Telegram |
 | Looker Studio | Dashboard conectado a BigQuery |
 | Terraform | Infraestructura como código (IaC) |
 
@@ -207,22 +204,25 @@ se levanta en minutos con `terraform apply` cuando se necesita.
 
 ```
 sismo-monitor-gcp/
-├── terraform/          # Infraestructura como código
-│   ├── main.tf         # Provider GCP
-│   ├── variables.tf    # Variables del proyecto
-│   ├── budget.tf       # Alertas de presupuesto $5/$15/$25 USD
-│   └── pubsub.tf       # Topics y subscriptions
+├── terraform/
+│   ├── main.tf              # Provider GCP
+│   ├── variables.tf         # Variables del proyecto
+│   ├── budget.tf            # Alertas de presupuesto $5/$15/$25 USD
+│   ├── pubsub.tf            # Topics sismos-raw y sismos-alertas + suscripción
+│   ├── bigquery.tf          # Dataset, tablas eventos_raw, metricas_ventana, alertas_enviadas
+│   ├── storage.tf           # Buckets Dataflow temp y CF source
+│   ├── cloudfunction.tf     # Cloud Function notificador + SA cf-notifier + IAM
+│   ├── scheduled_query.tf   # Scheduled Query metricas_ventana (cada 10 min)
+│   └── outputs.tf
 ├── ingestion/
-│   ├── poller.py       # Poller USGS → Pub/Sub
-│   └── Dockerfile      # Imagen para Cloud Run
+│   └── poller.py            # Poller USGS → Pub/Sub (dedup por id+updated)
 ├── pipeline/
-│   ├── pipeline.py     # Pipeline Apache Beam principal
-│   ├── transforms.py   # Transformaciones reutilizables
-│   └── config.py       # Umbrales y parámetros configurables
-├── alerting/
-│   └── notifier.py     # Cloud Function — email + Telegram
-└── queries/
-    └── dashboard_queries.sql
+│   ├── pipeline.py          # Pipeline Apache Beam principal
+│   ├── transforms.py        # ParseMessage, EnrichEvent, FilterAlertas, etc.
+│   ├── config.py            # Umbrales y parámetros configurables
+│   └── setup.py             # Empaquetado de módulos para workers Dataflow
+└── alerting/
+    └── main.py              # Cloud Function — Telegram + email vía SendGrid REST
 ```
 
 ---
@@ -254,18 +254,34 @@ terraform apply
 cd ../ingestion
 pip install -r requirements.txt
 
-# 5. Correr el poller localmente
+# 5. Correr el poller localmente (Terminal 1)
 GCP_PROJECT_ID=tu-project-id python poller.py
 
-# 6. Probar el pipeline con DirectRunner
+# 6. Correr el pipeline (Terminal 2)
 cd ../pipeline
 pip install -r requirements.txt
-python pipeline.py --input_file=test_events.json
+
+# Modo local (sin costo, para desarrollo)
+python pipeline.py
+
+# Modo Dataflow (streaming en GCP)
+python pipeline.py \
+  --runner=DataflowRunner \
+  --temp_location=gs://TU_BUCKET/temp \
+  --region=us-east1 \
+  --worker_machine_type=e2-standard-2 \
+  --max_num_workers=1 \
+  --setup_file=$(pwd)/setup.py
 ```
 
 ### Destruir infraestructura al terminar
 ```bash
-cd terraform && terraform destroy
+# Destroy selectivo — preserva BigQuery con datos históricos
+cd terraform
+terraform destroy \
+  -target=google_pubsub_subscription.sismos_raw_sub \
+  -target=google_pubsub_topic.sismos_raw \
+  -target=google_storage_bucket.dataflow_temp
 ```
 
 ---
@@ -277,9 +293,12 @@ cd terraform && terraform destroy
 | 0 — Fundaciones (GCP + Terraform + presupuesto) | ✅ Completada |
 | 1 — Ingesta a Pub/Sub | ✅ Completada |
 | 2 — Pipeline Beam DirectRunner local | ✅ Completada |
-| 3 — BigQuery + Dataflow | 🔄 En construcción |
-| 4 — Alertas email + Telegram | ⏳ Pendiente |
-| 5 — Dashboard Looker Studio | ⏳ Pendiente |
+| 3 — BigQuery + Dataflow streaming | ✅ Completada |
+| 4 — Alertas email + Telegram | ✅ Completada |
+| 5 — Dashboard Looker Studio | ✅ Completada |
+| 6 — Evidencia + destroy final | ✅ Completada |
+| 7 — README final | ✅ Completada |
+| 8 — Poller en Cloud Run Job (optativa) | ⏳ Pendiente |
 
 ---
 
