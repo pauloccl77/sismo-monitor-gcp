@@ -3,6 +3,8 @@ Configuración central del pipeline sísmico.
 Todos los parámetros operativos viven aquí — sin hardcode en pipeline.py ni transforms.py.
 """
 
+import os
+
 # ---------------------------------------------------------------------------
 # Fuente de datos
 # ---------------------------------------------------------------------------
@@ -35,8 +37,6 @@ WINDOW_SIZE_MINUTES = 10       # Tamaño de la ventana de agregación
 # ---------------------------------------------------------------------------
 # GCP — se sobreescriben con variables de entorno en producción
 # ---------------------------------------------------------------------------
-import os
-
 PROJECT_ID    = os.environ.get("GCP_PROJECT_ID", "sismo-monitor-pcl")
 TOPIC_RAW     = os.environ.get("PUBSUB_TOPIC_RAW", "sismos-raw")
 SUB_RAW       = os.environ.get("PUBSUB_SUB_RAW", "sismos-raw-sub")   # leer siempre desde suscripción

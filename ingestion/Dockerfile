@@ -10,4 +10,7 @@ COPY poller.py .
 ENV POLL_INTERVAL_SECONDS=60
 ENV STATE_FILE=/tmp/seen_ids.json
 
+RUN useradd --create-home --uid 1000 poller
+USER poller
+
 CMD ["python", "poller.py"]

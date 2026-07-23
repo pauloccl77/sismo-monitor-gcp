@@ -37,6 +37,6 @@ resource "google_billing_budget" "sismo_monitor_budget" {
 
   all_updates_rule {
     monitoring_notification_channels = var.notification_channels
-    disable_default_iam_recipients    = false
+    disable_default_iam_recipients   = false
   }
 }

@@ -98,9 +98,6 @@ def poll_once(publisher, topic_path: str, seen_state: dict) -> dict:
         if not is_new and not is_updated:
             continue
 
-        coords = feature["geometry"]["coordinates"]
-        lon, lat = coords[0], coords[1]
-
         # Filtro geográfico: solo Chile
         # TEMP: comentado para pruebas con mayor volumen de eventos
         # if not is_in_chile(lon, lat):

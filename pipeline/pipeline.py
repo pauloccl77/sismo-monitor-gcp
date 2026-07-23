@@ -22,15 +22,9 @@ from apache_beam.options.pipeline_options import (
     GoogleCloudOptions,
     WorkerOptions,
 )
-from apache_beam.transforms.window import FixedWindows
-from apache_beam.transforms.trigger import (
-    AfterWatermark,
-    AfterProcessingTime,
-    AccumulationMode,
-)
 
 import config
-from transforms import ParseMessage, FilterChile, EnrichEvent, FormatForBigQuery, FilterAlertas
+from transforms import ParseMessage, EnrichEvent, FormatForBigQuery, FilterAlertas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
