@@ -1,5 +1,7 @@
 # 🌎 Monitor Sísmico Chile — GCP Streaming Pipeline
 
+[![CI](https://github.com/pauloccl77/sismo-monitor-gcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pauloccl77/sismo-monitor-gcp/actions/workflows/ci.yml)
+
 > Pipeline near real-time que ingesta sismos desde USGS, los procesa con Apache Beam y entrega alertas automáticas por email y Telegram.
 
 **[Ver Dashboard en vivo →](https://datastudio.google.com/u/0/reporting/9ba90f6b-b7b5-4b0f-ac13-61a0925ad942/page/Lys0F?s=pPzL-zN4qug)**
@@ -73,6 +75,16 @@ USGS GeoJSON Feed (actualizado cada 60s)
 | Secret Manager | Credenciales SendGrid y Telegram |
 | Looker Studio | Dashboard conectado a BigQuery |
 | Terraform | Infraestructura como código (IaC) |
+
+### Desarrollo y CI/CD
+
+| Herramienta | Rol |
+|---|---|
+| Docker | Containeriza el poller (`ingestion/Dockerfile`) — base para migrarlo a Cloud Run Job en Fase 8 |
+| GitHub Actions | CI: lint, tests, build de imagen Docker, `terraform plan` en cada push a `main` |
+| Workload Identity Federation | Autenticación de GitHub Actions contra GCP sin llaves de larga duración |
+| ruff | Linter Python (`pyproject.toml`) |
+| pytest | Tests unitarios de la lógica de deduplicación y parsing del poller |
 
 ---
 
@@ -186,6 +198,22 @@ Sin créditos GCP disponibles, todo gasto es real. Dataflow streaming cuesta ~$0
 Dejar el pipeline corriendo sin supervisión puede generar cargos innecesarios. La infra
 se levanta en minutos con `terraform apply` cuando se necesita.
 
+**¿Por qué GitHub Actions se autentica contra GCP con Workload Identity Federation y no con una service account key?**
+La alternativa clásica es generar un archivo JSON de credenciales y guardarlo como secret
+en GitHub — funciona, pero es una credencial de larga duración: si se filtra, sigue siendo
+válida hasta que alguien la revoque manualmente. Con WIF, GCP confía directamente en los
+tokens OIDC de corta duración que GitHub firma para este repositorio (`pauloccl77/sismo-monitor-gcp`);
+no hay ninguna llave que guardar, rotar ni pueda filtrarse. La service account que usa el
+CI (`ci-terraform-plan`) es además de solo lectura — el job de CI únicamente corre
+`terraform plan`, nunca `apply`.
+
+**¿Por qué el smoke test del contenedor solo importa el módulo y no corre `main()`?**
+Ejecutar el loop completo del poller requeriría credenciales GCP reales (para instanciar
+`PublisherClient`) y acceso de red al feed de USGS — ninguno de los dos está disponible
+en el runner de CI, y no tiene sentido darle credenciales de escritura a un job de build.
+El smoke test valida lo que sí se puede validar sin salir del contenedor: que la imagen
+buildea y que el módulo importa y ejecuta sin errores de sintaxis o dependencias faltantes.
+
 ---
 
 ## Conexión con experiencia previa
@@ -204,6 +232,9 @@ se levanta en minutos con `terraform apply` cuando se necesita.
 
 ```
 sismo-monitor-gcp/
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # Lint, test, docker build, terraform plan (WIF)
 ├── terraform/
 │   ├── main.tf              # Provider GCP
 │   ├── variables.tf         # Variables del proyecto
@@ -215,14 +246,18 @@ sismo-monitor-gcp/
 │   ├── scheduled_query.tf   # Scheduled Query metricas_ventana (cada 10 min)
 │   └── outputs.tf
 ├── ingestion/
-│   └── poller.py            # Poller USGS → Pub/Sub (dedup por id+updated)
+│   ├── poller.py            # Poller USGS → Pub/Sub (dedup por id+updated)
+│   ├── test_poller.py       # Tests unitarios (dedup, parsing, filtro geográfico)
+│   ├── Dockerfile           # Imagen del poller — base para Cloud Run Job (Fase 8)
+│   └── .dockerignore
 ├── pipeline/
 │   ├── pipeline.py          # Pipeline Apache Beam principal
 │   ├── transforms.py        # ParseMessage, EnrichEvent, FilterAlertas, etc.
 │   ├── config.py            # Umbrales y parámetros configurables
 │   └── setup.py             # Empaquetado de módulos para workers Dataflow
-└── alerting/
-    └── main.py              # Cloud Function — Telegram + email vía SendGrid REST
+├── alerting/
+│   └── main.py              # Cloud Function — Telegram + email vía SendGrid REST
+└── pyproject.toml           # Configuración de ruff (lint)
 ```
 
 ---
@@ -234,6 +269,7 @@ sismo-monitor-gcp/
 - Terraform >= 1.5
 - gcloud CLI configurado (`gcloud auth application-default login`)
 - Proyecto GCP con billing activo
+- Docker (opcional — solo para correr el poller containerizado)
 
 ### Setup
 ```bash
@@ -256,6 +292,13 @@ pip install -r requirements.txt
 
 # 5. Correr el poller localmente (Terminal 1)
 GCP_PROJECT_ID=tu-project-id python poller.py
+
+# 5b. Alternativa: correr el poller en Docker
+docker build -t sismo-poller .
+docker run --rm \
+  -e GCP_PROJECT_ID=tu-project-id \
+  -v ~/.config/gcloud:/home/poller/.config/gcloud:ro \
+  sismo-poller
 
 # 6. Correr el pipeline (Terminal 2)
 cd ../pipeline
@@ -341,6 +384,7 @@ terraform destroy \
 | 6 — Evidencia + destroy final | ✅ Completada |
 | 7 — README final | ✅ Completada |
 | 8 — Poller en Cloud Run Job (optativa) | ⏳ Pendiente |
+| — Docker + CI/CD (GitHub Actions) | ✅ Completada |
 
 ---
 
@@ -355,6 +399,8 @@ terraform destroy \
 - **Eventos preliminares sin magnitud:** USGS publica algunos eventos inmediatamente después del sismo sin magnitud calculada (`magnitude: null`). El poller los captura en ese estado. Solución implementada: el poller rastrea el campo `updated` de cada evento — si USGS lo actualiza con magnitud revisada, el evento se republica automáticamente al pipeline. El campo `is_update: true` en BigQuery identifica estas republicaciones.
 
 - **Duplicados en BigQuery:** dado que los eventos actualizados se repubican, puede haber múltiples filas para el mismo `id` en `eventos_raw` — una con datos preliminares y otra con datos revisados. Para análisis, filtrar por `is_update = false` o usar `MAX(timestamp_procesado)` por `id`.
+
+- **Docker build validado en CI, no localmente:** la imagen del poller se construye y corre con éxito en cada push (ver badge de CI arriba), pero no se validó `docker build`/`docker run` en la máquina de desarrollo por no tener Docker/WSL2 instalado. El smoke test del contenedor solo confirma que el módulo importa — no ejecuta el loop de polling completo, que requiere credenciales GCP reales.
 
 ---
 
